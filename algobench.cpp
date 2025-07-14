@@ -10,10 +10,10 @@
 class PerformanceAnalyzer {
 private:
     // Different test sizes based on algorithm complexity
-    std::vector<int> search_linear_sizes = {10000, 100000, 1000000, 10000000, 100000000}; // O(n) - up to 100M
-    std::vector<int> search_binary_sizes = {10000, 100000, 1000000, 10000000, 100000000}; // O(log n) - up to 100M
-    std::vector<int> sort_quadratic_sizes = {10000, 100000, 1000000}; // O(n²) - up to 1M
-    std::vector<int> sort_nlogn_sizes = {10000, 100000, 1000000, 10000000}; // O(n log n) - up to 10M
+    std::vector<int> search_linear_sizes = {1000, 10000, 100000, 1000000, 10000000}; // O(n) - up to 10M
+    std::vector<int> search_binary_sizes = {1000, 10000, 100000, 1000000, 10000000, 100000000}; // O(log n) - up to 100M
+    std::vector<int> sort_quadratic_sizes = {1000, 10000, 100000}; // O(n²) - up to 100k
+    std::vector<int> sort_nlogn_sizes = {1000, 10000, 100000, 1000000}; // O(n log n) - up to 1M
     
     std::vector<int> generateRandomVector(int n) {
         std::vector<int> vec;
@@ -38,9 +38,20 @@ private:
     }
     
     void measureAlgorithm(const std::string& name, std::function<void()> algorithm, int n) {
-        // Run multiple iterations for more accurate timing, especially for fast operations
-        int iterations = (name.find("Search") != std::string::npos) ? 1000 : 1;
-        
+        int iterations = 1;
+        if (n <= 1000) {
+            iterations = 100000; // Use 100,000 for all algorithms at small sizes
+        } else if (name.find("Binary Search") != std::string::npos) {
+            iterations = 100000;
+        } else if (name.find("Linear Search") != std::string::npos) {
+            iterations = 1000;
+        }
+        // Warm up
+        if (iterations > 1) {
+            for (int i = 0; i < 10; i++) {
+                algorithm();
+            }
+        }
         // Measure time in nanoseconds
         auto start = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < iterations; i++) {
@@ -48,19 +59,15 @@ private:
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        
         // Average the time if multiple iterations
-        long long avg_time = duration.count() / iterations;
-        
+        double avg_time = static_cast<double>(duration.count()) / iterations;
         // Calculate theoretical memory usage instead of process memory
         size_t theoretical_memory = calculateTheoreticalMemory(name, n);
-
         // Print to console
         std::cout << std::setw(18) << name 
                   << std::setw(12) << n 
-                  << std::setw(15) << avg_time << " ns"
+                  << std::setw(15) << std::fixed << std::setprecision(2) << avg_time << " ns"
                   << std::setw(15) << theoretical_memory << " bytes" << std::endl;
-
         // Write to CSV
         std::ofstream csvFile("results.csv", std::ios::app);
         if (csvFile.is_open()) {
@@ -243,90 +250,88 @@ public:
         std::ofstream csvFile("results.csv");
         csvFile << "Algorithm,Size,Time_ns,Memory_bytes" << std::endl;
         csvFile.close();
-        
-        // LINEAR SEARCH - O(n) - up to 100M
-        std::cout << "\nLINEAR SEARCH ANALYSIS (O(n)):" << std::endl;
-        std::cout << std::setw(18) << "Algorithm" 
-                  << std::setw(12) << "Size" 
-                  << std::setw(15) << "Time (ns)" 
-                  << std::setw(15) << "Memory" << std::endl;
-        std::cout << std::string(60, '-') << std::endl;
-        
-        for (int n : search_linear_sizes) {
-            auto vec_search = generateRandomVector(n);
-            int target = std::max(1, n / 2);
-            measureAlgorithm("Linear Search", [&]() { 
-                linearSearch(vec_search, target); 
-            }, n);
+
+        // Collect all unique sizes from all algorithm groups
+        std::vector<int> all_sizes;
+        all_sizes.insert(all_sizes.end(), search_linear_sizes.begin(), search_linear_sizes.end());
+        all_sizes.insert(all_sizes.end(), search_binary_sizes.begin(), search_binary_sizes.end());
+        all_sizes.insert(all_sizes.end(), sort_quadratic_sizes.begin(), sort_quadratic_sizes.end());
+        all_sizes.insert(all_sizes.end(), sort_nlogn_sizes.begin(), sort_nlogn_sizes.end());
+        std::sort(all_sizes.begin(), all_sizes.end());
+        all_sizes.erase(std::unique(all_sizes.begin(), all_sizes.end()), all_sizes.end());
+
+        for (int n : all_sizes) {
+            std::cout << "\n" << std::string(70, '=') << std::endl;
+            std::cout << "SIZE: " << n << std::endl;
+            std::cout << std::string(70, '=') << std::endl;
+
+            // SEARCHING GROUP
+            bool has_search = (std::find(search_linear_sizes.begin(), search_linear_sizes.end(), n) != search_linear_sizes.end()) ||
+                              (std::find(search_binary_sizes.begin(), search_binary_sizes.end(), n) != search_binary_sizes.end());
+            if (has_search) {
+                std::cout << "\n  Searching Algorithms:" << std::endl;
+                std::cout << std::string(60, '-') << std::endl;
+                std::cout << std::setw(18) << "Algorithm"
+                          << std::setw(12) << "Size"
+                          << std::setw(15) << "Time (ns)"
+                          << std::setw(15) << "Memory" << std::endl;
+                std::cout << std::string(60, '-') << std::endl;
+                // Linear Search
+                if (std::find(search_linear_sizes.begin(), search_linear_sizes.end(), n) != search_linear_sizes.end()) {
+                    auto vec_search = generateRandomVector(n);
+                    int target = std::max(1, n / 2);
+                    measureAlgorithm("Linear Search", [&]() {
+                        linearSearch(vec_search, target);
+                    }, n);
+                }
+                // Binary Search
+                if (std::find(search_binary_sizes.begin(), search_binary_sizes.end(), n) != search_binary_sizes.end()) {
+                    auto vec_sorted = generateSortedVector(n);
+                    int target = std::max(1, n / 2);
+                    measureAlgorithm("Binary Search", [&]() {
+                        binarySearch(vec_sorted, target);
+                    }, n);
+                }
+            }
+
+            // SORTING GROUP
+            bool has_sort = (std::find(sort_quadratic_sizes.begin(), sort_quadratic_sizes.end(), n) != sort_quadratic_sizes.end()) ||
+                            (std::find(sort_nlogn_sizes.begin(), sort_nlogn_sizes.end(), n) != sort_nlogn_sizes.end());
+            if (has_sort) {
+                std::cout << "\n  Sorting Algorithms:" << std::endl;
+                std::cout << std::string(60, '-') << std::endl;
+                std::cout << std::setw(18) << "Algorithm"
+                          << std::setw(12) << "Size"
+                          << std::setw(15) << "Time (ns)"
+                          << std::setw(15) << "Memory" << std::endl;
+                std::cout << std::string(60, '-') << std::endl;
+                // Quadratic sorts
+                if (std::find(sort_quadratic_sizes.begin(), sort_quadratic_sizes.end(), n) != sort_quadratic_sizes.end()) {
+                    auto vec = generateRandomVector(n);
+                    measureAlgorithm("Bubble Sort", [&]() { bubbleSort(vec); }, n);
+                    vec = generateRandomVector(n);
+                    measureAlgorithm("Selection Sort", [&]() { selectionSort(vec); }, n);
+                    vec = generateRandomVector(n);
+                    measureAlgorithm("Insertion Sort", [&]() { insertionSort(vec); }, n);
+                }
+                // nlogn sorts
+                if (std::find(sort_nlogn_sizes.begin(), sort_nlogn_sizes.end(), n) != sort_nlogn_sizes.end()) {
+                    auto vec1 = generateRandomVector(n);
+                    measureAlgorithm("Quick Sort", [&]() {
+                        quickSort(vec1);
+                    }, n);
+                    auto vec2 = generateRandomVector(n);
+                    measureAlgorithm("Merge Sort", [&]() {
+                        mergeSort(vec2);
+                    }, n);
+                    auto vec3 = generateRandomVector(n);
+                    measureAlgorithm("STL Sort", [&]() {
+                        std::sort(vec3.begin(), vec3.end());
+                    }, n);
+                }
+            }
         }
-        
-        // BINARY SEARCH - O(log n) - up to 100M
-        std::cout << "\nBINARY SEARCH ANALYSIS (O(log n)):" << std::endl;
-        std::cout << std::setw(18) << "Algorithm" 
-                  << std::setw(12) << "Size" 
-                  << std::setw(15) << "Time (ns)" 
-                  << std::setw(15) << "Memory" << std::endl;
-        std::cout << std::string(60, '-') << std::endl;
-        
-        for (int n : search_binary_sizes) {
-            std::cout << "Generating sorted vector of size " << n << "..." << std::endl;
-            auto vec_sorted = generateSortedVector(n);
-            int target = std::max(1, n / 2);
-            measureAlgorithm("Binary Search", [&]() { 
-                binarySearch(vec_sorted, target); 
-            }, n);
-        }
-        
-        // QUADRATIC SORTING ALGORITHMS - O(n²) - up to 1M
-        std::cout << "\nQUADRATIC SORTING ALGORITHMS (O(n²)):" << std::endl;
-        std::cout << std::setw(18) << "Algorithm" 
-                  << std::setw(12) << "Size" 
-                  << std::setw(15) << "Time (ns)" 
-                  << std::setw(15) << "Memory" << std::endl;
-        std::cout << std::string(60, '-') << std::endl;
-        
-        for (int n : sort_quadratic_sizes) {
-            auto vec = generateRandomVector(n);
-            measureAlgorithm("Bubble Sort", [&]() { bubbleSort(vec); }, n);
-            
-            vec = generateRandomVector(n);
-            measureAlgorithm("Selection Sort", [&]() { selectionSort(vec); }, n);
-            
-            vec = generateRandomVector(n);
-            measureAlgorithm("Insertion Sort", [&]() { insertionSort(vec); }, n);
-        }
-        
-        // EFFICIENT SORTING ALGORITHMS - O(n log n) - up to 10M
-        std::cout << "\nEFFICIENT SORTING ALGORITHMS (O(n log n)):" << std::endl;
-        std::cout << std::setw(18) << "Algorithm" 
-                  << std::setw(12) << "Size" 
-                  << std::setw(15) << "Time (ns)" 
-                  << std::setw(15) << "Memory" << std::endl;
-        std::cout << std::string(60, '-') << std::endl;
-        
-        for (int n : sort_nlogn_sizes) {
-            auto vec1 = generateRandomVector(n);
-            measureAlgorithm("Quick Sort", [&]() { 
-                quickSort(vec1); 
-            }, n);
-            
-            auto vec2 = generateRandomVector(n);
-            measureAlgorithm("Merge Sort", [&]() { 
-                mergeSort(vec2); 
-            }, n);
-            
-            auto vec3 = generateRandomVector(n);
-            measureAlgorithm("STL Sort", [&]() { 
-                std::sort(vec3.begin(), vec3.end()); 
-            }, n);
-        }
-        
         std::cout << "\nAnalysis complete. Results saved to results.csv" << std::endl;
-        std::cout << "\nComplexity Summary:" << std::endl;
-        std::cout << "• Linear Search: O(n) - tested up to 100M elements" << std::endl;
-        std::cout << "• Binary Search: O(log n) - tested up to 100M elements" << std::endl;
-        std::cout << "• Quadratic Sorts: O(n²) - tested up to 1M elements" << std::endl;
-        std::cout << "• Efficient Sorts: O(n log n) - tested up to 10M elements" << std::endl;
     }
 };
 
