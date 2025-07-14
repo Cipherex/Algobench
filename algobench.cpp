@@ -39,12 +39,19 @@ private:
     
     void measureAlgorithm(const std::string& name, std::function<void()> algorithm, int n) {
         int iterations = 1;
-        if (n <= 1000) {
-            iterations = 100000; // Use 100,000 for all algorithms at small sizes
-        } else if (name.find("Binary Search") != std::string::npos) {
-            iterations = 100000;
-        } else if (name.find("Linear Search") != std::string::npos) {
-            iterations = 1000;
+        // For n^2 sorts, always use 1 iteration
+        if (!(name == "Bubble Sort" || name == "Selection Sort" || name == "Insertion Sort")) {
+            if (n <= 1000) {
+                if (name == "Quick Sort" || name == "Merge Sort" || name == "STL Sort") {
+                    iterations = 1000; // 1,000 for nlogn sorts at small sizes
+                } else {
+                    iterations = 100000; // 100,000 for others at small sizes
+                }
+            } else if (name.find("Binary Search") != std::string::npos) {
+                iterations = 100000;
+            } else if (name.find("Linear Search") != std::string::npos) {
+                iterations = 1000;
+            }
         }
         // Warm up
         if (iterations > 1) {
