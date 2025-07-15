@@ -43,7 +43,7 @@ private:
         if (!(name == "Bubble Sort" || name == "Selection Sort" || name == "Insertion Sort")) {
             if (n <= 1000) {
                 if (name == "Quick Sort" || name == "Merge Sort" || name == "STL Sort") {
-                    iterations = 1000; // 1,000 for nlogn sorts at small sizes
+                    iterations = 100; // 1,00 for nlogn sorts at small sizes
                 } else {
                     iterations = 100000; // 100,000 for others at small sizes
                 }
